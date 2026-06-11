@@ -1,0 +1,46 @@
+import logging
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .config import settings
+from .db import init_schema
+from .reference.seed import seed_all
+from .routers import flows, storage, lng, demand, balance, meta
+
+logging.basicConfig(level=settings.log_level)
+log = logging.getLogger("gas-analytics")
+
+app = FastAPI(title="gas-analytics", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(meta.router)
+app.include_router(flows.router)
+app.include_router(storage.router)
+app.include_router(lng.router)
+app.include_router(demand.router)
+app.include_router(balance.router)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_schema()
+    seed_all()
+    log.info("schema initialised, reference seeded")
+
+
+@app.get("/")
+def root():
+    return {"name": "gas-analytics", "version": "0.1.0", "docs": "/docs"}
+
+
+@app.get("/healthz")
+def health():
+    return {"ok": True}

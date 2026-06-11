@@ -1,0 +1,27 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #0b0d10; color: #e8eaed; font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace; }
+a { color: #7cc4ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px; border-bottom: 1px solid #1f2933; background: #0e1116;
+  position: sticky; top: 0; z-index: 10;
+}
+.topbar .brand { font-weight: 700; letter-spacing: 0.5px; }
+.topbar nav a { margin-left: 16px; font-size: 14px; }
+
+.page { padding: 20px; max-width: 1600px; margin: 0 auto; }
+.grid { display: grid; gap: 16px; }
+.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+.card { background: #11151b; border: 1px solid #1f2933; border-radius: 8px; padding: 16px; }
+.card h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #9aa5b1; }
+.card .big { font-size: 28px; font-weight: 700; }
+.card .sub { font-size: 12px; color: #7b8794; margin-top: 4px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 6px 8px; border-bottom: 1px solid #1f2933; text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+th { color: #9aa5b1; font-weight: 500; }
