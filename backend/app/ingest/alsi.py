@@ -25,7 +25,7 @@ def _headers() -> dict[str, str]:
 
 
 def fetch_country_day(country: str, day: date) -> dict | None:
-    url = f"{settings.alsi_base_url}/"
+    url = settings.alsi_base_url
     params = {"country": country, "date": day.isoformat(), "size": 60}
     try:
         return get_json(url, params=params, headers=_headers())
@@ -39,6 +39,13 @@ def _f(v):
         return float(v) if v not in (None, "", "-") else None
     except (TypeError, ValueError):
         return None
+
+
+def _nested(r: dict, key: str, sub: str = "gwh"):
+    v = r.get(key)
+    if isinstance(v, dict):
+        return _f(v.get(sub))
+    return _f(v)
 
 
 def upsert_country_day(country: str, day: date, payload: dict) -> int:
@@ -57,8 +64,8 @@ def upsert_country_day(country: str, day: date, payload: dict) -> int:
                 day,
                 f"{country}-AGG",
                 _f(r.get("sendOut")),
-                _f(r.get("lngInventory")),
-                _f(r.get("dtmi")),
+                _nested(r, "inventory", "gwh"),
+                _nested(r, "dtmi", "gwh"),
             ),
         )
     return 1

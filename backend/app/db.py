@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS ip (
     tso_to TEXT,
     vip_id TEXT,
     reporting_side TEXT,
+    lon DOUBLE,
+    lat DOUBLE,
+    has_data BOOLEAN DEFAULT TRUE,
     active BOOLEAN DEFAULT TRUE
 );
 
@@ -79,9 +82,13 @@ CREATE TABLE IF NOT EXISTS storage_country_daily (
     date DATE,
     country TEXT,
     full_pct DOUBLE,
-    working_gas_twh DOUBLE,
+    gas_in_storage_twh DOUBLE,
+    working_gas_volume_twh DOUBLE,
     injection_gwh DOUBLE,
     withdrawal_gwh DOUBLE,
+    net_withdrawal_gwh DOUBLE,
+    consumption_gwh DOUBLE,
+    trend DOUBLE,
     PRIMARY KEY (date, country)
 );
 

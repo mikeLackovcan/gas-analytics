@@ -14,7 +14,7 @@ log = logging.getLogger("ingest")
 
 @retry(stop=stop_after_attempt(4), wait=wait_exponential(multiplier=1, min=2, max=30))
 def get_json(url: str, params: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> Any:
-    with httpx.Client(timeout=60.0) as client:
+    with httpx.Client(timeout=60.0, follow_redirects=True) as client:
         r = client.get(url, params=params, headers=headers)
         r.raise_for_status()
         return r.json()

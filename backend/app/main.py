@@ -4,8 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .db import init_schema
-from .reference.seed import seed_all
+from .db import init_schema, conn_ctx
+from .reference.seed import seed_all, bootstrap_ips
 from .routers import flows, storage, lng, demand, balance, meta
 
 logging.basicConfig(level=settings.log_level)
@@ -33,6 +33,10 @@ app.include_router(balance.router)
 def on_startup() -> None:
     init_schema()
     seed_all()
+    with conn_ctx() as c:
+        n_ips = c.execute("SELECT COUNT(*) FROM ip").fetchone()[0]
+    if n_ips == 0:
+        bootstrap_ips()
     log.info("schema initialised, reference seeded")
 
 

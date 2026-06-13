@@ -1,9 +1,18 @@
-"""Seed reference tables from python lists into DuckDB."""
+"""Seed reference tables.
+
+`seed_all()` loads static reference (countries, storage facilities, LNG terminals).
+IP catalog is bootstrapped from ENTSOG live via `bootstrap_ips()` — call separately
+since it needs network. Hand-coded `ips.py` retained only as offline fallback.
+"""
+import logging
+
 from .countries import COUNTRIES
-from .ips import IPS
+from .ips import IPS as FALLBACK_IPS
 from .storage_facilities import STORAGE_FACILITIES
 from .lng_terminals import LNG_TERMINALS
 from ..db import conn_ctx, init_schema
+
+log = logging.getLogger("seed")
 
 
 def seed_all() -> None:
@@ -13,14 +22,6 @@ def seed_all() -> None:
         c.executemany(
             "INSERT INTO country VALUES (?, ?, ?, ?, ?)",
             [(x["code"], x["name"], x["tz"], x["population"], x["has_demand_model"]) for x in COUNTRIES],
-        )
-        c.execute("DELETE FROM ip")
-        c.executemany(
-            "INSERT INTO ip VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [(
-                x["id"], x["name"], x["country_from"], x["country_to"],
-                x["tso_from"], x["tso_to"], x["vip_id"], x["reporting_side"], True
-            ) for x in IPS],
         )
         c.execute("DELETE FROM storage_facility")
         c.executemany(
@@ -40,6 +41,27 @@ def seed_all() -> None:
         )
 
 
+def bootstrap_ips() -> int:
+    """Pull live ENTSOG catalog; fall back to hand-coded list on failure."""
+    try:
+        from ..ingest.entsog_catalog import run as run_cat
+        return run_cat()
+    except Exception as e:
+        log.warning("ENTSOG catalog fetch failed (%s) — falling back to hand-coded IPs", e)
+        with conn_ctx() as c:
+            c.execute("DELETE FROM ip")
+            for x in FALLBACK_IPS:
+                c.execute(
+                    "INSERT INTO ip VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (x["id"], x["name"], x["country_from"], x["country_to"],
+                     x["tso_from"], x["tso_to"], x["vip_id"], x["reporting_side"],
+                     None, None, True, True),
+                )
+        return len(FALLBACK_IPS)
+
+
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     seed_all()
-    print("Reference data seeded.")
+    n = bootstrap_ips()
+    print(f"Reference seeded. IPs: {n}")

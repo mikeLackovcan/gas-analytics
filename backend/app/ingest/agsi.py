@@ -22,7 +22,7 @@ def _headers() -> dict[str, str]:
 
 
 def fetch_country_day(country: str, day: date) -> dict | None:
-    url = f"{settings.agsi_base_url}/"
+    url = settings.agsi_base_url
     params = {"country": country, "date": day.isoformat(), "size": 60}
     try:
         return get_json(url, params=params, headers=_headers())
@@ -40,15 +40,20 @@ def upsert_country_day(country: str, day: date, payload: dict) -> int:
     with conn_ctx() as c:
         c.execute(
             """
-            INSERT OR REPLACE INTO storage_country_daily VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO storage_country_daily VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 day,
                 country,
                 _f(r.get("full")),
                 _f(r.get("gasInStorage")),
+                _f(r.get("workingGasVolume")),
                 _f(r.get("injection")),
                 _f(r.get("withdrawal")),
+                _f(r.get("netWithdrawal")),
+                _f(r.get("consumption")),
+                _f(r.get("trend")),
             ),
         )
     return 1
