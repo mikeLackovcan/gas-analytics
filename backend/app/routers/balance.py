@@ -11,18 +11,18 @@ def country_balance(country: str, days: int = Query(30, ge=1, le=365)):
     country = country.upper()
     end = date.today()
     start = end - timedelta(days=days)
+    prefix = f"{country}-"
     with conn_ctx() as c:
         flows = c.execute(
             """
             SELECT f.date,
-                   SUM(CASE WHEN ip.country_to   = ? THEN f.kwh ELSE 0 END) / 1e6 AS entries_gwh,
-                   SUM(CASE WHEN ip.country_from = ? THEN f.kwh ELSE 0 END) / 1e6 AS exits_gwh
+                   SUM(CASE WHEN f.direction='entry' THEN f.kwh ELSE 0 END) / 1e6 AS entries_gwh,
+                   SUM(CASE WHEN f.direction='exit'  THEN f.kwh ELSE 0 END) / 1e6 AS exits_gwh
             FROM flow_ip_daily f
-            JOIN ip ON ip.id = f.ip_id
-            WHERE f.date BETWEEN ? AND ?
+            WHERE f.date BETWEEN ? AND ? AND f.operator_key LIKE ?
             GROUP BY f.date ORDER BY f.date
             """,
-            (country, country, start, end),
+            (start, end, prefix + "%"),
         ).fetchall()
         storage = c.execute(
             "SELECT date, injection_gwh, withdrawal_gwh FROM storage_country_daily WHERE country = ? AND date BETWEEN ? AND ?",

@@ -52,6 +52,7 @@ def upsert_flows(rows: list[dict]) -> int:
                 continue
             d = date.fromisoformat(day_str[:10])
             direction = (r.get("directionKey") or r.get("direction") or "").lower()
+            operator = r.get("operatorKey") or ""
             kwh = r.get("value")
             try:
                 kwh = float(kwh) if kwh is not None else None
@@ -60,24 +61,42 @@ def upsert_flows(rows: list[dict]) -> int:
             if kwh is None:
                 continue
             c.execute(
-                "INSERT OR REPLACE INTO flow_ip_daily VALUES (?, ?, ?, ?)",
-                (d, ip_id, direction, kwh),
+                "INSERT OR REPLACE INTO flow_ip_daily VALUES (?, ?, ?, ?, ?)",
+                (d, ip_id, operator, direction, kwh),
             )
             n += 1
     return n
 
 
-def run(days_back: int = 3) -> int:
+def run(days_back: int = 3, day_from: date | None = None, day_to: date | None = None,
+        chunk_days: int = 30) -> int:
+    """ENTSOG limits a single call to ~10k rows; chunk by `chunk_days` for backfill."""
     today = date.today()
-    day_from = today - timedelta(days=days_back)
-    day_to = today
-    rows = fetch_operational(day_from, day_to)
-    save_raw("entsog", f"physical_flow_{day_from}_{day_to}", rows, dt=today)
-    n = upsert_flows(rows)
+    if day_from is None or day_to is None:
+        day_from = today - timedelta(days=days_back)
+        day_to = today
+    n = 0
+    cur = day_from
+    while cur < day_to:
+        chunk_end = min(cur + timedelta(days=chunk_days), day_to)
+        rows = fetch_operational(cur, chunk_end)
+        save_raw("entsog", f"physical_flow_{cur}_{chunk_end}", rows, dt=today)
+        n += upsert_flows(rows)
+        cur = chunk_end
     log.info("entsog ingested %d rows for %s..%s", n, day_from, day_to)
     return n
 
 
 if __name__ == "__main__":
+    import argparse
     logging.basicConfig(level=logging.INFO)
-    run()
+    p = argparse.ArgumentParser()
+    p.add_argument("--from", dest="from_", help="YYYY-MM-DD")
+    p.add_argument("--to", dest="to_", help="YYYY-MM-DD")
+    p.add_argument("--days", type=int, default=3)
+    p.add_argument("--chunk", type=int, default=30)
+    a = p.parse_args()
+    if a.from_ and a.to_:
+        run(day_from=date.fromisoformat(a.from_), day_to=date.fromisoformat(a.to_), chunk_days=a.chunk)
+    else:
+        run(days_back=a.days, chunk_days=a.chunk)

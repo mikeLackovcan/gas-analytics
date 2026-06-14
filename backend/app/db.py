@@ -51,11 +51,24 @@ CREATE TABLE IF NOT EXISTS ip (
     active BOOLEAN DEFAULT TRUE
 );
 
-CREATE TABLE IF NOT EXISTS storage_facility (
-    id TEXT PRIMARY KEY,
-    country TEXT,
-    operator TEXT,
+CREATE TABLE IF NOT EXISTS storage_company (
+    eic TEXT PRIMARY KEY,
+    short_name TEXT,
     name TEXT,
+    country TEXT,
+    publication_url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS storage_facility (
+    id TEXT PRIMARY KEY,            -- EIC if known, else fabricated
+    eic TEXT,
+    company_eic TEXT,
+    country TEXT,
+    operator TEXT,                  -- short_name of company
+    name TEXT,
+    type TEXT,                      -- DSR / ASF / UGS / VSP / etc
+    operational_start_date DATE,
+    operational_end_date DATE,
     working_gas_twh DOUBLE,
     max_inj_gwh_d DOUBLE,
     max_wdr_gwh_d DOUBLE
@@ -73,9 +86,10 @@ CREATE TABLE IF NOT EXISTS lng_terminal (
 CREATE TABLE IF NOT EXISTS flow_ip_daily (
     date DATE,
     ip_id TEXT,
+    operator_key TEXT,
     direction TEXT,
     kwh DOUBLE,
-    PRIMARY KEY (date, ip_id, direction)
+    PRIMARY KEY (date, ip_id, operator_key, direction)
 );
 
 CREATE TABLE IF NOT EXISTS storage_country_daily (

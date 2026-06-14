@@ -4,23 +4,21 @@ Status: post-smoke-test on 2026-06-14. Real data confirmed flowing from AGSI, AL
 
 ---
 
-## 0. Headline finding from the smoke test
+## 0. Headline finding from the smoke test — CORRECTED 2026-06-14
 
-**AGSI publishes `consumption` per country per gas-day, for free.**
+Initial probe of AGSI showed a `consumption` field per country, and I assumed it was the actual daily demand. **It is not.** A back-to-back probe confirms it is a **seasonal average / "days-of-cover" reference value** — the same number repeats across consecutive days, e.g. DE 2026-06-08..12 all read `consumption=903.9 GWh/d` even though storage `full %` changes daily.
 
-Example payload (DE, 2026-06-10):
 ```
-gasInStorage: 87.9 TWh   workingGasVolume: 247.7 TWh   full: 35.5%
-injection: 499 GWh/d     withdrawal: 7.3 GWh/d         netWithdrawal: -492 GWh/d
-consumption: 904 GWh/d   trend: +0.2
+2026-06-08  full=35.00   consumption=903.9
+2026-06-09  full=35.28   consumption=903.9
+2026-06-10  full=35.48   consumption=903.9
+2026-06-11  full=35.63   consumption=903.9
+2026-06-12  full=35.87   consumption=903.9   ← same value 5 days running
 ```
 
-This re-shapes the plan from SPEC.md §6 (forecast):
+**Implication:** SPEC.md §6 is back in force — daily demand nowcast still requires mass-balance reconstruction (entries − exits + withdrawal − injection + LNG_sendout − domestic_production). Per-country actuals from TSOs (BNetzA, THE, GRTgaz, Snam) become the reconciliation target rather than AGSI.
 
-- **Before:** demand had to be **reconstructed** via mass balance, then a 3-component model (LDZ + power + industrial) had to be fit *and validated* against published TSO sendout (BNetzA / THE). The mass-balance residual was the QC signal.
-- **Now:** AGSI **is** the demand actual. The mass-balance reconstruction becomes a *cross-check* against AGSI, and the forecast model fits directly to AGSI consumption history.
-
-Action: persist `consumption_gwh` into `demand_country_daily` directly from AGSI ingest (Phase 2 collapses to ~1 day of work). Mass-balance computation in `/api/balance/country` stays — but as **validation**, not **source**.
+Action: keep storing `consumption_gwh` in `storage_country_daily` as the seasonal reference (useful for "days of cover" tiles), but **do not** populate `demand_country_daily` from it. Mass-balance is the path.
 
 ---
 

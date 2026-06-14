@@ -112,31 +112,44 @@ def parse_a75(xml: str) -> list[tuple[datetime, float]]:
     return out
 
 
-def run(country: str = "DE", days_back: int = 3) -> int:
+def run(country: str = "DE", days_back: int = 3,
+        day_from: date | None = None, day_to: date | None = None) -> int:
     init_schema()
     today = date.today()
-    day_from = today - timedelta(days=days_back)
-    xml = fetch_gas_gen(country, day_from, today)
+    if day_from is None or day_to is None:
+        day_from = today - timedelta(days=days_back)
+        day_to = today
+    xml = fetch_gas_gen(country, day_from, day_to)
     if not xml:
         return 0
-    save_raw("entsoe", f"gas_gen_{country}_{day_from}_{today}", xml, dt=today)
+    save_raw("entsoe", f"gas_gen_{country}_{day_from}_{day_to}", xml, dt=today)
     points = parse_a75(xml)
     if not points:
-        log.info("entsoe %s: no points parsed", country)
+        log.info("entsoe %s %s..%s: no points parsed", country, day_from, day_to)
         return 0
-    # Persist as parquet for now (no table in schema yet — added in Phase 3).
     import pandas as pd
     df = pd.DataFrame(points, columns=["datetime", "gas_mw"])
     df["country"] = country
     out_dir = settings.parquet_dir / "power_gas_gen_hourly"
     out_dir.mkdir(parents=True, exist_ok=True)
-    fp = out_dir / f"{country}_{day_from}_{today}.parquet"
+    fp = out_dir / f"{country}_{day_from}_{day_to}.parquet"
     df.to_parquet(fp, index=False)
-    log.info("entsoe %s: %d points -> %s", country, len(df), fp)
+    log.info("entsoe %s: %d points (%s..%s) -> %s", country, len(df), day_from, day_to, fp)
     return len(df)
 
 
 if __name__ == "__main__":
+    import argparse
     logging.basicConfig(level=logging.INFO)
-    for c in BZ_EIC:
-        run(c)
+    p = argparse.ArgumentParser()
+    p.add_argument("--country")
+    p.add_argument("--from", dest="from_")
+    p.add_argument("--to", dest="to_")
+    p.add_argument("--days", type=int, default=3)
+    a = p.parse_args()
+    countries = [a.country] if a.country else list(BZ_EIC.keys())
+    for c in countries:
+        if a.from_ and a.to_:
+            run(c, day_from=date.fromisoformat(a.from_), day_to=date.fromisoformat(a.to_))
+        else:
+            run(c, days_back=a.days)

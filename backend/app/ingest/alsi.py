@@ -71,21 +71,36 @@ def upsert_country_day(country: str, day: date, payload: dict) -> int:
     return 1
 
 
-def run(days_back: int = 7) -> int:
+def run(days_back: int = 7, day_from: date | None = None, day_to: date | None = None) -> int:
     today = date.today()
+    if day_from and day_to:
+        start, end = day_from, day_to
+    else:
+        start = today - timedelta(days=days_back)
+        end = today - timedelta(days=1)
     n = 0
-    for back in range(days_back, 0, -1):
-        d = today - timedelta(days=back)
+    d = start
+    while d <= end:
         for country in COUNTRIES:
             p = fetch_country_day(country, d)
             if p is None:
                 continue
             save_raw("alsi", f"{country}_{d.isoformat()}", p, dt=d)
             n += upsert_country_day(country, d, p)
-    log.info("alsi ingested %d country-days", n)
+        d += timedelta(days=1)
+    log.info("alsi ingested %d country-days (%s..%s)", n, start, end)
     return n
 
 
 if __name__ == "__main__":
+    import argparse
     logging.basicConfig(level=logging.INFO)
-    run()
+    p = argparse.ArgumentParser()
+    p.add_argument("--from", dest="from_", help="YYYY-MM-DD")
+    p.add_argument("--to", dest="to_", help="YYYY-MM-DD")
+    p.add_argument("--days", type=int, default=7)
+    a = p.parse_args()
+    if a.from_ and a.to_:
+        run(day_from=date.fromisoformat(a.from_), day_to=date.fromisoformat(a.to_))
+    else:
+        run(days_back=a.days)
