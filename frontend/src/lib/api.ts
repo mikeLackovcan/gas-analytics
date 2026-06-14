@@ -9,6 +9,6 @@ export async function api<T>(path: string): Promise<T> {
 export const fetcher = (path: string) => api(path);
 
 export type CountryPairFlow = { from: string; to: string; net_kwh: number; from_date: string; to_date: string };
-export type StorageRow = { date: string; country: string; full_pct: number | null; working_gas_twh: number | null; injection_gwh: number | null; withdrawal_gwh: number | null };
+export type StorageRow = { date: string; country: string; full_pct: number | null; gas_in_storage_twh: number | null; working_gas_volume_twh: number | null; injection_gwh: number | null; withdrawal_gwh: number | null; net_withdrawal_gwh: number | null; consumption_gwh: number | null; trend: number | null };
 export type LngRow = { date: string; terminal_id: string; sendout_gwh: number | null; inventory_gwh: number | null; dtmi_gwh: number | null };
 export type ForecastPoint = { target_date: string; country: string; gwh: number; p10: number; p90: number; model_version: string };

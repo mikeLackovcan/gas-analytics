@@ -125,6 +125,15 @@ CREATE TABLE IF NOT EXISTS lng_terminal_daily (
     PRIMARY KEY (date, terminal_id)
 );
 
+CREATE TABLE IF NOT EXISTS price_daily (
+    date DATE,
+    hub TEXT,                 -- TTF / THE / PEG / PVB / NBP / HH / EUA / API2
+    settle_eur_mwh DOUBLE,
+    contract TEXT,            -- e.g. 'M+1', 'BoM', 'Cal26', 'Win26-27'
+    source TEXT,              -- 'csv-manual', 'eex', 'ice', etc
+    PRIMARY KEY (date, hub, contract)
+);
+
 CREATE TABLE IF NOT EXISTS hdd_country_daily (
     date DATE,
     country TEXT,

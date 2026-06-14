@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .db import init_schema, conn_ctx
 from .reference.seed import seed_all, bootstrap_ips, bootstrap_storage
-from .routers import flows, storage, lng, demand, balance, meta
+from .routers import flows, storage, lng, demand, balance, meta, prices
 
 logging.basicConfig(level=settings.log_level)
 log = logging.getLogger("gas-analytics")
@@ -27,6 +27,7 @@ app.include_router(storage.router)
 app.include_router(lng.router)
 app.include_router(demand.router)
 app.include_router(balance.router)
+app.include_router(prices.router)
 
 
 @app.on_event("startup")
@@ -40,7 +41,17 @@ def on_startup() -> None:
         bootstrap_ips()
     if n_fac == 0:
         bootstrap_storage()
-    log.info("schema initialised, reference seeded")
+    from .config import settings
+    if settings.log_level.upper() != "TEST":
+        from .scheduler import start_scheduler
+        start_scheduler()
+    log.info("schema initialised, reference seeded, scheduler up")
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    from .scheduler import stop_scheduler
+    stop_scheduler()
 
 
 @app.get("/")
