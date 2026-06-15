@@ -82,27 +82,48 @@ def feature_cols() -> list[str]:
 
 
 def load_training(country: str, day_from: date, day_to: date) -> pd.DataFrame:
-    """Join demand_country_daily + hdd_country_daily (era5) per country."""
+    """Join demand_country_daily + hdd_country_daily + AGSI consumption anchor.
+
+    The raw mass-balance nowcast is level-biased low (missing NO production,
+    partial ALSI history, etc). We correct that bias by anchoring to AGSI's
+    `consumption` field, which is a seasonal-average reference value per
+    country. Per-month offset = mean(consumption) - mean(nowcast) gets added
+    to nowcast to produce a level-corrected demand target.
+    """
     with conn_ctx() as c:
         rows = c.execute(
             """
             SELECT d.date,
-                   d.nowcast_gwh AS demand,
+                   d.nowcast_gwh AS demand_raw,
+                   s.consumption_gwh AS agsi_consumption,
                    AVG(h.hdd_pop) FILTER (WHERE h.source = 'era5') AS hdd_pop
             FROM demand_country_daily d
+            LEFT JOIN storage_country_daily s
+              ON s.country = d.country AND s.date = d.date
             LEFT JOIN hdd_country_daily h
               ON h.country = d.country AND h.date = d.date
             WHERE d.country = ? AND d.date BETWEEN ? AND ?
               AND d.nowcast_gwh IS NOT NULL
-            GROUP BY d.date, d.nowcast_gwh
+            GROUP BY d.date, d.nowcast_gwh, s.consumption_gwh
             ORDER BY d.date
             """,
             (country, day_from, day_to),
         ).fetchall()
-    df = pd.DataFrame(rows, columns=["date", "demand", "hdd_pop"])
+    df = pd.DataFrame(rows, columns=["date", "demand_raw", "agsi_consumption", "hdd_pop"])
     df["date"] = pd.to_datetime(df["date"]).dt.date
     df["hdd_pop"] = df["hdd_pop"].fillna(0.0)
-    return df
+    df["month"] = pd.to_datetime(df["date"]).dt.month
+
+    # Per-month bias correction: anchor to AGSI consumption.
+    bias = (
+        df.dropna(subset=["agsi_consumption"])
+          .groupby("month")
+          .apply(lambda g: g["agsi_consumption"].mean() - g["demand_raw"].mean())
+          .to_dict()
+    )
+    df["bias"] = df["month"].map(bias).fillna(0.0)
+    df["demand"] = df["demand_raw"] + df["bias"]
+    return df[["date", "demand", "hdd_pop"]]
 
 
 def fit(country: str, day_from: date, day_to: date) -> tuple[LinearRegression, FitResult] | None:
@@ -211,20 +232,25 @@ def forecast_path(model: LinearRegression, country: str, horizon_days: int = 10)
 
 
 def persist_forecast(country: str, fc: pd.DataFrame, residual_std: float) -> int:
+    """Persist forecast with P10/P90 from residual std (Gaussian z=1.282).
+
+    Demand is physically non-negative; we floor P50 and P10 at 0 to avoid
+    publishing negative values when the model extrapolates poorly (common
+    on countries whose nowcast target is biased low due to missing
+    production / LNG terms — see SPEC §6.2)."""
     if fc.empty:
         return 0
     init_schema()
     run_ts = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
-    # P10/P90 from residual std assuming Gaussian (~1.282 sigma)
     z = 1.282
     with conn_ctx() as c:
         for _, r in fc.iterrows():
+            p50 = max(0.0, float(r["gwh"]))
+            p10 = max(0.0, p50 - z * residual_std)
+            p90 = p50 + z * residual_std
             c.execute(
                 "INSERT OR REPLACE INTO demand_forecast VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (run_ts, country, r["target_date"], float(r["gwh"]),
-                 float(r["gwh"] - z * residual_std),
-                 float(r["gwh"] + z * residual_std),
-                 MODEL_VERSION),
+                (run_ts, country, r["target_date"], p50, p10, p90, MODEL_VERSION),
             )
     log.info("forecast %s: persisted %d rows @ %s (res_std=%.1f)", country, len(fc), run_ts, residual_std)
     return len(fc)
