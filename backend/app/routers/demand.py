@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, BackgroundTasks
 from ..db import conn_ctx
 
 router = APIRouter(prefix="/api/demand", tags=["demand"])
@@ -18,6 +18,32 @@ def nowcast(country: str | None = None, days: int = Query(60, ge=1, le=365)):
     with conn_ctx() as c:
         rows = c.execute(sql, args).fetchall()
     return [{"date": r[0].isoformat(), "country": r[1], "nowcast_gwh": r[2], "model_version": r[3]} for r in rows]
+
+
+@router.post("/backtest")
+def run_backtest(bg: BackgroundTasks, months: int = 6, train_years: int = 3):
+    """Walk-forward backtest. Returns 'scheduled'; results in app logs."""
+    from ..forecast.backtest import run_all
+    bg.add_task(
+        run_all,
+        countries=["DE", "NL", "FR", "IT", "AT", "CZ", "BE", "PL", "ES"],
+        months_test=months,
+        train_years=train_years,
+    )
+    return {"status": "scheduled", "months": months, "train_years": train_years}
+
+
+@router.post("/forecast/refresh")
+def refresh_forecast(bg: BackgroundTasks, train_years: int = 3, horizon_days: int = 10):
+    """Trigger LDZ refit + forecast persist in the background."""
+    from ..forecast.ldz import fit_and_forecast_all
+    bg.add_task(
+        fit_and_forecast_all,
+        countries=["DE", "NL", "FR", "IT", "AT", "CZ", "BE", "PL", "ES"],
+        train_years=train_years,
+        horizon_days=horizon_days,
+    )
+    return {"status": "scheduled", "train_years": train_years, "horizon_days": horizon_days}
 
 
 @router.get("/forecast")

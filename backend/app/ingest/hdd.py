@@ -14,6 +14,7 @@ Schema:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone
 
@@ -112,36 +113,58 @@ def upsert(country: str, source: str, fcst_run: datetime, series: dict[date, flo
     return len(series)
 
 
-def run_history(countries: list[str], day_from: date, day_to: date) -> int:
-    """ERA5 backfill for the given countries / dates."""
+async def _fetch_archive_async(client: httpx.AsyncClient, lat: float, lon: float,
+                               day_from: date, day_to: date) -> dict | None:
+    url = "https://archive-api.open-meteo.com/v1/era5"
+    params = {
+        "latitude": lat, "longitude": lon,
+        "start_date": day_from.isoformat(), "end_date": day_to.isoformat(),
+        "daily": "temperature_2m_mean", "timezone": "UTC",
+    }
+    try:
+        r = await client.get(url, params=params)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        log.warning("era5 fetch %.2f,%.2f failed: %s", lat, lon, e)
+        return None
+
+
+async def _history_async(countries: list[str], day_from: date, day_to: date,
+                         concurrency: int = 8) -> int:
+    init_schema()
     run_ts = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+    sem = asyncio.Semaphore(concurrency)
     total = 0
-    for country in countries:
-        cities = CITIES.get(country) or []
-        if not cities:
-            continue
-        per_city: list[dict[date, float]] = []
-        for name, lat, lon, pop in cities:
-            try:
-                payload = fetch_archive(lat, lon, day_from, day_to)
-                save_raw("open-meteo", f"era5_{country}_{name}_{day_from}_{day_to}", payload, dt=day_to)
-            except Exception as e:
-                log.warning("era5 %s/%s failed: %s", country, name, e)
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        async def fetch_city(name, lat, lon, pop):
+            async with sem:
+                return name, pop, await _fetch_archive_async(client, lat, lon, day_from, day_to)
+
+        for country in countries:
+            cities = CITIES.get(country) or []
+            if not cities:
                 continue
-            per_city.append((pop, _parse_daily(payload)))  # type: ignore[arg-type]
-        if not per_city:
-            continue
-        total_pop = sum(p for p, _ in per_city)
-        merged: dict[date, float] = {}
-        for pop, temps in per_city:
-            w = pop / total_pop
-            for d, t in temps.items():
-                if t is None:
-                    continue
-                merged[d] = merged.get(d, 0.0) + w * _hdd(t)
-        total += upsert(country, "era5", run_ts, merged)
-    log.info("hdd era5: %d country-day rows", total)
+            results = await asyncio.gather(*[fetch_city(n, lat, lon, p) for n, lat, lon, p in cities])
+            per_city = [(pop, _parse_daily(payload)) for name, pop, payload in results if payload]
+            if not per_city:
+                continue
+            total_pop = sum(p for p, _ in per_city)
+            merged: dict[date, float] = {}
+            for pop, temps in per_city:
+                w = pop / total_pop
+                for d, t in temps.items():
+                    if t is None:
+                        continue
+                    merged[d] = merged.get(d, 0.0) + w * _hdd(t)
+            total += upsert(country, "era5", run_ts, merged)
+            log.info("hdd era5 %s: %d days", country, len(merged))
     return total
+
+
+def run_history(countries: list[str], day_from: date, day_to: date) -> int:
+    """ERA5 backfill for the given countries / dates (async parallel)."""
+    return asyncio.run(_history_async(countries, day_from, day_to))
 
 
 def run_forecast(countries: list[str], days_ahead: int = 15) -> int:

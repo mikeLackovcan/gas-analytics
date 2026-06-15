@@ -164,6 +164,14 @@ CREATE TABLE IF NOT EXISTS demand_forecast (
 """
 
 
+_SCHEMA_INITIALIZED = False
+
+
 def init_schema() -> None:
+    """Idempotent + memoised within a process so we don't churn connections."""
+    global _SCHEMA_INITIALIZED
+    if _SCHEMA_INITIALIZED:
+        return
     with conn_ctx() as c:
         c.execute(SCHEMA_SQL)
+    _SCHEMA_INITIALIZED = True

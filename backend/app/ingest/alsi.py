@@ -5,8 +5,11 @@ Auth: x-key header (same key as AGSI works on free tier).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import date, timedelta
+
+import httpx
 
 from ..config import settings
 from ..db import conn_ctx, init_schema
@@ -71,23 +74,56 @@ def upsert_country_day(country: str, day: date, payload: dict) -> int:
     return 1
 
 
-def run(days_back: int = 7, day_from: date | None = None, day_to: date | None = None) -> int:
+async def _fetch_async(client: httpx.AsyncClient, country: str, day: date) -> tuple[str, date, dict | None]:
+    params = {"country": country, "date": day.isoformat(), "size": 60}
+    key = settings.alsi_api_key or settings.agsi_api_key
+    try:
+        r = await client.get(settings.alsi_base_url, params=params,
+                             headers={"x-key": key} if key else None)
+        r.raise_for_status()
+        return country, day, r.json()
+    except Exception as e:
+        log.warning("alsi %s %s failed: %s", country, day, e)
+        return country, day, None
+
+
+async def _run_async(start: date, end: date, concurrency: int = 12) -> int:
+    init_schema()
+    days = []
+    d = start
+    while d <= end:
+        days.append(d)
+        d += timedelta(days=1)
+    pairs = [(c, day) for day in days for c in COUNTRIES]
+    sem = asyncio.Semaphore(concurrency)
+    n = 0
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        async def bounded(c: str, day: date):
+            async with sem:
+                return await _fetch_async(client, c, day)
+
+        coros = [bounded(c, day) for c, day in pairs]
+        for batch_start in range(0, len(coros), 100):
+            batch = coros[batch_start:batch_start + 100]
+            results = await asyncio.gather(*batch)
+            for country, day, payload in results:
+                if payload is None:
+                    continue
+                save_raw("alsi", f"{country}_{day.isoformat()}", payload, dt=day)
+                n += upsert_country_day(country, day, payload)
+            log.info("alsi batch done: %d/%d", batch_start + len(batch), len(coros))
+    return n
+
+
+def run(days_back: int = 7, day_from: date | None = None, day_to: date | None = None,
+        concurrency: int = 12) -> int:
     today = date.today()
     if day_from and day_to:
         start, end = day_from, day_to
     else:
         start = today - timedelta(days=days_back)
         end = today - timedelta(days=1)
-    n = 0
-    d = start
-    while d <= end:
-        for country in COUNTRIES:
-            p = fetch_country_day(country, d)
-            if p is None:
-                continue
-            save_raw("alsi", f"{country}_{d.isoformat()}", p, dt=d)
-            n += upsert_country_day(country, d, p)
-        d += timedelta(days=1)
+    n = asyncio.run(_run_async(start, end, concurrency=concurrency))
     log.info("alsi ingested %d country-days (%s..%s)", n, start, end)
     return n
 

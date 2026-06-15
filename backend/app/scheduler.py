@@ -71,6 +71,16 @@ def _job_prices():
     run()
 
 
+def _job_forecast():
+    """Refit LDZ + persist D+1..D+10 forecast per country."""
+    from .forecast.ldz import fit_and_forecast_all
+    fit_and_forecast_all(
+        countries=["DE", "NL", "FR", "IT", "AT", "CZ", "BE", "PL", "ES"],
+        train_years=3,
+        horizon_days=10,
+    )
+
+
 def start_scheduler() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -81,6 +91,7 @@ def start_scheduler() -> BackgroundScheduler:
     sched.add_job(_job_alsi, CronTrigger(hour=9, minute=20), id="alsi", replace_existing=True, max_instances=1)
     sched.add_job(_job_prices, CronTrigger(hour=9, minute=0), id="prices", replace_existing=True, max_instances=1)
     sched.add_job(_job_nowcast, CronTrigger(hour=9, minute=35), id="nowcast", replace_existing=True, max_instances=1)
+    sched.add_job(_job_forecast, CronTrigger(hour=10, minute=0), id="forecast", replace_existing=True, max_instances=1)
     # ENTSOG: every 4h
     sched.add_job(_job_entsog, IntervalTrigger(hours=4), id="entsog", replace_existing=True, max_instances=1)
     # ENTSO-E: hourly at :10
