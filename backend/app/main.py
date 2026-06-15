@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_schema, conn_ctx
-from .reference.seed import seed_all, bootstrap_ips, bootstrap_storage
+from .reference.seed import seed_all, bootstrap_ips, bootstrap_storage, bootstrap_lng
 from .routers import flows, storage, lng, demand, balance, meta, prices
 
 logging.basicConfig(level=settings.log_level)
@@ -41,6 +41,10 @@ def on_startup() -> None:
         bootstrap_ips()
     if n_fac == 0:
         bootstrap_storage()
+    with conn_ctx() as c:
+        n_lng = c.execute("SELECT COUNT(*) FROM lng_terminal").fetchone()[0]
+    if n_lng == 0:
+        bootstrap_lng()
     from .config import settings
     if settings.log_level.upper() != "TEST":
         from .scheduler import start_scheduler

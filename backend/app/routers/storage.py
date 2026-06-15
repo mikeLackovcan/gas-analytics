@@ -1,3 +1,4 @@
+"""Storage endpoints — country aggregates + facility catalog + trajectory."""
 from datetime import date, timedelta
 from fastapi import APIRouter, Query
 from ..db import conn_ctx
@@ -9,7 +10,9 @@ router = APIRouter(prefix="/api/storage", tags=["storage"])
 def country_storage(country: str | None = None, days: int = Query(90, ge=1, le=730)):
     end = date.today()
     start = end - timedelta(days=days)
-    sql = "SELECT date, country, full_pct, gas_in_storage_twh, working_gas_volume_twh, injection_gwh, withdrawal_gwh, net_withdrawal_gwh, consumption_gwh, trend FROM storage_country_daily WHERE date BETWEEN ? AND ?"
+    sql = ("SELECT date, country, full_pct, gas_in_storage_twh, working_gas_volume_twh, "
+           "injection_gwh, withdrawal_gwh, net_withdrawal_gwh, consumption_gwh, trend "
+           "FROM storage_country_daily WHERE date BETWEEN ? AND ?")
     args: list = [start, end]
     if country:
         sql += " AND country = ?"
@@ -22,6 +25,30 @@ def country_storage(country: str | None = None, days: int = Query(90, ge=1, le=7
          "gas_in_storage_twh": r[3], "working_gas_volume_twh": r[4],
          "injection_gwh": r[5], "withdrawal_gwh": r[6],
          "net_withdrawal_gwh": r[7], "consumption_gwh": r[8], "trend": r[9]}
+        for r in rows
+    ]
+
+
+@router.get("/facilities")
+def list_facilities(country: str | None = None, active_only: bool = True):
+    """Storage facility catalog from AGSI /about (no per-facility series on free tier)."""
+    sql = ("SELECT id, eic, company_eic, country, operator, name, type, "
+           "operational_start_date, operational_end_date "
+           "FROM storage_facility WHERE 1=1")
+    args: list = []
+    if country:
+        sql += " AND country = ?"
+        args.append(country.upper())
+    if active_only:
+        sql += " AND (operational_end_date IS NULL OR operational_end_date > CURRENT_DATE)"
+    sql += " ORDER BY country, name"
+    with conn_ctx() as c:
+        rows = c.execute(sql, args).fetchall()
+    return [
+        {"id": r[0], "eic": r[1], "company_eic": r[2], "country": r[3],
+         "operator": r[4], "name": r[5], "type": r[6],
+         "operational_start_date": r[7].isoformat() if r[7] else None,
+         "operational_end_date": r[8].isoformat() if r[8] else None}
         for r in rows
     ]
 

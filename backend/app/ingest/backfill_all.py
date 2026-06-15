@@ -48,6 +48,19 @@ def main() -> None:
                 chunk_end = min(cur + timedelta(days=30), dt)
                 run_e(c, day_from=cur, day_to=chunk_end)
                 cur = chunk_end
+    if "hdd" not in a.skip:
+        from .hdd import run_history
+        from ..reference.cities import CITIES
+        run_history(list(CITIES.keys()), df, dt)
+    if "nowcast" not in a.skip:
+        from .demand_nowcast import run as run_nw
+        run_nw(day_from=df, day_to=dt)
+    if "forecast" not in a.skip:
+        from ..forecast.ldz import fit_and_forecast_all
+        fit_and_forecast_all(
+            countries=["DE", "NL", "FR", "IT", "AT", "CZ", "BE", "PL", "ES"],
+            train_years=2, horizon_days=10,
+        )
 
 
 if __name__ == "__main__":

@@ -75,9 +75,27 @@ def bootstrap_storage() -> tuple[int, int]:
         return 0, len(STORAGE_FACILITIES)
 
 
+def bootstrap_lng() -> int:
+    """Pull live ALSI /about catalog; fall back to hand-coded list on failure."""
+    try:
+        from ..ingest.alsi_catalog import run as run_alsi_cat
+        return run_alsi_cat()
+    except Exception as e:
+        log.warning("ALSI /about fetch failed (%s) — falling back to hand-coded terminals", e)
+        with conn_ctx() as c:
+            c.execute("DELETE FROM lng_terminal")
+            for x in LNG_TERMINALS:
+                c.execute(
+                    "INSERT INTO lng_terminal VALUES (?, ?, ?, ?, ?, ?)",
+                    (x["id"], x["country"], x["name"], x["capacity_gwh_d"], x["storage_gwh"], x["owner"]),
+                )
+        return len(LNG_TERMINALS)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     seed_all()
     n_ips = bootstrap_ips()
     n_co, n_fac = bootstrap_storage()
-    print(f"Reference seeded. IPs: {n_ips}, storage companies: {n_co}, facilities: {n_fac}")
+    n_lng = bootstrap_lng()
+    print(f"Reference seeded. IPs: {n_ips}, storage companies: {n_co}, facilities: {n_fac}, LNG terminals: {n_lng}")
