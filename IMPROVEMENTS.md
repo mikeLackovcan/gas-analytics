@@ -195,24 +195,45 @@ For each terminal cluster (DE, NL, BE, FR, IT, ES, UK):
 
 ---
 
-## 7. Recommended next sprint (1–2 wk)
+## 7. Sprint completion log
 
-Tackle in order, each is mostly independent:
+**Sprint 1 (2026-06-11..15) — all 8 items shipped:**
 
-1. **Add migrations + extend AGSI ingest to per-facility.** ~½ day. Unlocks 1.1 and 4.1.
-2. **AGSI consumption → `demand_country_daily` populated directly.** ~2h. Collapses Phase 2 to a baseline.
-3. **3y historical backfill of AGSI + ALSI + ENTSOG.** ~1 day. Bulk of model training data.
-4. **ECMWF HDD ingest + climatology.** ~1.5 days. Unblocks forecast.
-5. **TTF/PEG/THE EEX settle scraper.** ~½ day.
-6. **MapLibre + deck.gl arcs on `/map`.** ~1 day. The wow-factor view.
-7. **Storage trajectory vs target chart on `/storage`.** ~½ day. Alpha overlay 4.1.
-8. **APScheduler with the four jobs.** ~½ day. Makes the dashboard self-updating.
+1. ✅ **AGSI per-facility ingest** — pivoted to /about catalog (free tier blocks per-facility series). 121 facilities loaded with EICs, types, dates.
+2. ✅ **Demand from AGSI consumption** — discovered AGSI `consumption` is seasonal avg, not actual. Replaced with operator-attributed mass-balance nowcast.
+3. ✅ **Historical backfill** — `--from/--to` on every ingest, `backfill_all.py` orchestrator. AGSI async refactor (12x speedup) makes 2y backfill ~20min.
+4. ✅ **HDD ingest** — Open-Meteo ERA5 + ECMWF IFS, pop-weighted city HDDs.
+5. ✅ **Prices** — Yahoo/EEX both blocked; switched to manual CSV drop with idempotent `_loaded/` archive.
+6. ✅ **MapLibre + deck.gl arcs** — `/api/flows/arcs` + dark MapLibre style + arc width by net GWh.
+7. ✅ **Storage trajectory vs target** — `/api/storage/trajectory` with 5y DOY P10/P50/P90 band + required-path-to-90% line.
+8. ✅ **APScheduler** — 7 cron jobs wired (agsi/alsi/prices/nowcast/forecast/entsog/entsoe/hdd).
 
-Skip for now (parking lot, raise to sprint 2): Norway gassco, UK NTS, VIP unwinding, cargo arrival scraper, gas-for-power coupling.
+**Sprint 2 (in progress) — Phase 2 forecast:**
+
+- ✅ LDZ OLS model (`app/forecast/ldz.py`): demand ~ HDD + dow + month + holiday + lag1 + lag7. P10/P90 from residual std.
+- ✅ Walk-forward backtest (`app/forecast/backtest.py`): MAE/RMSE/MAPE + skill vs persistence + skill vs climatology.
+- ✅ `/api/demand/forecast/refresh` + `/api/demand/backtest` background-task endpoints.
+- ✅ ALSI `/about` catalog (24 EU LNG terminals from LSO hierarchy).
+- ✅ `/api/lng/slack` — sendout / utilization / inventory_days_to_empty per country.
+- ✅ `/facilities` frontend page — 121 storage facilities by country/operator/type.
+- 🔄 2y backfill running for AGSI/ALSI/ENTSOG/HDD; LDZ fit + verification queued.
+
+## 8. Next sprint candidates (sprint 3)
 
 ---
 
-## 8. What we should NOT build
+Skip for now (raise to sprint 4 unless asked): Norway gassco, UK NTS, VIP unwinding, cargo arrival scraper. Top picks ordered by trader-value:
+
+1. **Gas-for-power coupling** — feed ENTSO-E gas-gen forecast (or your Energy-prices-claude residual-load output) into the LDZ model as a `power_gwh` covariate. Splits demand into LDZ + power components, makes the forecast spark-aware.
+2. **TTF curve loaded into industrial elasticity term** — once you drop CSVs, fit `Δind ≈ γ·log(TTF / TTF_5y_median)` and add as covariate. DE industrial demand is real-elastic post-2022.
+3. **AGSI consumption as days-of-cover tile** — even though it's a seasonal avg, it's still useful for "days of demand at current draw" overview cards.
+4. **Per-IP daily flow detail page** — drill from `/map` arc click into a per-IP time series chart with capacity utilization overlay.
+5. **Norway gassco daily production** — biggest swing supply, public daily field-by-field. Reduces mass-balance residual materially for DE/NL/UK/BE/FR (currently the missing `−Production_domestic` term).
+6. **Storage 5y P10-P90 band on storage country view** — extends what's on /storage today to per-country small-multiples.
+7. **Forecast skill leaderboard endpoint** — `/api/forecast/skill` returning latest backtest MAE/skill per country, surface as a tile on /demand.
+8. **Norway flow direction flip alert** — if Norwegian export flow drops below the seasonal P25, fire a Slack/email webhook.
+
+## 9. What we should NOT build
 
 - Vessel-level cargo tracking (Kpler/Vortexa replacement). Massive scope, low marginal value over ALSI inventory deltas + scheduled arrivals.
 - Multi-tenant auth / RBAC. Single user.
