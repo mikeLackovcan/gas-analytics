@@ -18,7 +18,7 @@ Time: ~30 min if you have a domain pointing at the VM. ~15 min if you use a free
 ## 1. Provision the Oracle VM (one-time)
 
 1. In Oracle Cloud Console → **Compute → Instances → Create Instance**.
-2. Image: **Canonical Ubuntu 24.04**.
+2. Image: **Oracle Linux 9** (works fine — bootstrap script auto-detects) or **Canonical Ubuntu 24.04** if visible under the publisher filter. Both supported.
 3. Shape: **VM.Standard.A1.Flex** (Ampere ARM, the "Always Free" one). Take **2 OCPU + 12 GB RAM**. You can scale up to 4/24 if you have headroom.
 4. Networking: keep the default VCN; **make sure "Assign a public IPv4 address" is checked**.
 5. SSH keys: upload your public key.
@@ -41,13 +41,12 @@ If you have a real domain (Cloudflare Registrar, $13/yr for `.energy`):
 ## 3. SSH in and run bootstrap
 
 ```bash
-ssh ubuntu@<oracle-public-ip>
+# Oracle Linux uses 'opc'; Ubuntu uses 'ubuntu'
+ssh opc@<oracle-public-ip>          # Oracle Linux
+# OR
+ssh ubuntu@<oracle-public-ip>       # Ubuntu
 
-# Quick test of inbound network — should show "1" if 80 opens correctly later
-sudo ss -tlnp | head
-
-# Pull the bootstrap script (works because the repo is public — if it's still
-# private and your push isn't done yet, scp the file over instead)
+# Pull the bootstrap script
 curl -fsSL https://raw.githubusercontent.com/mikeLackovcan/gas-analytics/main/deploy/bootstrap_oracle.sh -o bootstrap.sh
 sudo DOMAIN=gas-mike.duckdns.org bash bootstrap.sh
 ```
