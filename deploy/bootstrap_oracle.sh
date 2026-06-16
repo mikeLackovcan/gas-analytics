@@ -20,6 +20,20 @@ else echo "Unsupported distro: need dnf or apt-get"; exit 1
 fi
 echo "==> Detected package manager: $PKG ($FAMILY family)"
 
+# --- Add swap if RAM < 2GB (handles E2.1.Micro 1GB shape) ---
+MEM_MB=$(free -m | awk '/^Mem:/ {print $2}')
+SWAP_MB=$(free -m | awk '/^Swap:/ {print $2}')
+if [ "$MEM_MB" -lt 1800 ] && [ "$SWAP_MB" -lt 1000 ]; then
+  echo "==> Low RAM ($MEM_MB MB) and no swap — adding 4GB swap file"
+  fallocate -l 4G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  sysctl vm.swappiness=10 >/dev/null
+  echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf
+fi
+
 # --- Install Docker ---
 if [ "$FAMILY" = "rhel" ]; then
   echo "==> Installing Docker (Oracle Linux)"
