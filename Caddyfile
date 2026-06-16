@@ -1,0 +1,12 @@
+{
+    email {$ACME_EMAIL:michalseneca@gmail.com}
+}
+
+{$DOMAIN} {
+    encode gzip
+    reverse_proxy backend:8000
+    log {
+        output stdout
+        format console
+    }
+}

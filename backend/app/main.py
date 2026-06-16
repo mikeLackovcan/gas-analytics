@@ -13,9 +13,12 @@ log = logging.getLogger("gas-analytics")
 
 app = FastAPI(title="gas-analytics", version="0.1.0")
 
+import os as _os
+_cors_extra = [o for o in (_os.environ.get("CORS_ORIGINS", "")).split(",") if o]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", *_cors_extra],
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
