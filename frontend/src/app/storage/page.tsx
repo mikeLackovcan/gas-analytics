@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import ReactECharts from "echarts-for-react";
+import TVChart, { TVSeries } from "@/components/TVChart";
 import { api, StorageRow } from "@/lib/api";
 
 type Trajectory = {
@@ -16,6 +16,11 @@ type Trajectory = {
 
 const COUNTRIES = ["DE", "NL", "FR", "IT", "AT", "CZ", "BE", "PL", "ES"];
 
+function doyToDate(doy: number, year: number): string {
+  const d = new Date(Date.UTC(year, 0, doy));
+  return d.toISOString().slice(0, 10);
+}
+
 export default function StoragePage() {
   const [rows, setRows] = useState<StorageRow[] | null>(null);
   const [country, setCountry] = useState("DE");
@@ -29,44 +34,35 @@ export default function StoragePage() {
     api<Trajectory>(`/api/storage/trajectory?country=${country}`).then(setTraj).catch(() => setTraj(null));
   }, [country]);
 
-  const trajOption = useMemo(() => {
-    if (!traj) return null;
+  const seriesData: TVSeries[] = useMemo(() => {
+    if (!traj) return [];
     const year = new Date().getFullYear();
-    const doyToDate = (doy: number) => {
-      const d = new Date(year, 0, doy);
-      return d.toISOString().slice(0, 10);
-    };
-    const bandDates = traj.band_by_doy.map((b) => doyToDate(b.doy));
-    const p10 = traj.band_by_doy.map((b) => b.p10);
-    const p50 = traj.band_by_doy.map((b) => b.p50);
-    const p90 = traj.band_by_doy.map((b) => b.p90);
-    const actualSeries = traj.actual.map((a) => [a.date, a.pct]);
-    const requiredSeries = traj.required_path.map((r) => [r.date, r.pct]);
+    const sort = <T extends { time: string }>(xs: T[]) =>
+      xs.slice().sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
 
-    return {
-      backgroundColor: "transparent",
-      grid: { left: 38, right: 12, top: 28, bottom: 30 },
-      tooltip: { trigger: "axis", backgroundColor: "#11161f", borderColor: "#1f2933", textStyle: { color: "#fff", fontFamily: "JetBrains Mono" } },
-      legend: { textStyle: { color: "#a8b3bf" }, top: 0, itemHeight: 8, itemWidth: 14 },
-      xAxis: { type: "time", axisLabel: { color: "#a8b3bf", fontSize: 10 } },
-      yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: "#a8b3bf", fontSize: 10, formatter: "{value}%" } },
-      series: [
-        { name: "5y P10", type: "line", data: bandDates.map((d, i) => [d, p10[i]]), lineStyle: { opacity: 0 }, symbol: "none", stack: "band-bot" },
-        { name: "5y P10-P90", type: "line", data: bandDates.map((d, i) => [d, p90[i] - p10[i]]), lineStyle: { opacity: 0 }, areaStyle: { color: "rgba(65,182,230,0.15)" }, symbol: "none", stack: "band-bot" },
-        { name: "5y P50", type: "line", data: bandDates.map((d, i) => [d, p50[i]]), lineStyle: { color: "#41b6e6", type: "dashed", width: 1 }, symbol: "none" },
-        { name: "Actual", type: "line", data: actualSeries, lineStyle: { color: "#ff9900", width: 2 }, symbol: "none" },
-        { name: "Required→90%", type: "line", data: requiredSeries, lineStyle: { color: "#ff5f5f", width: 1.2, type: "dotted" }, symbol: "none" },
-        { name: "90% target", type: "line", markLine: { silent: true, symbol: "none", data: [{ yAxis: 90, lineStyle: { color: "#ff5f5f", type: "dashed" } }] } },
-      ],
-    };
+    const p10 = sort(traj.band_by_doy.map((b) => ({ time: doyToDate(b.doy, year), value: b.p10 })));
+    const p50 = sort(traj.band_by_doy.map((b) => ({ time: doyToDate(b.doy, year), value: b.p50 })));
+    const p90 = sort(traj.band_by_doy.map((b) => ({ time: doyToDate(b.doy, year), value: b.p90 })));
+    const actual   = sort(traj.actual.map((a) => ({ time: a.date, value: a.pct })));
+    const required = sort(traj.required_path.map((r) => ({ time: r.date, value: r.pct })));
+
+    return [
+      { id: "p10", type: "area", data: p10,
+        topColor: "rgba(0,0,0,0)", bottomColor: "rgba(0,0,0,0)", color: "rgba(0,0,0,0)" },
+      { id: "p90", type: "area", data: p90,
+        topColor: "rgba(65,182,230,0.18)", bottomColor: "rgba(65,182,230,0.02)", color: "rgba(0,0,0,0)" },
+      { id: "p50",      type: "line", data: p50,      color: "#41b6e6", lineWidth: 1, lineStyle: "dashed" },
+      { id: "required", type: "line", data: required, color: "#ff5f5f", lineWidth: 1, lineStyle: "dotted" },
+      { id: "actual",   type: "line", data: actual,   color: "#ff9900", lineWidth: 2 },
+    ];
   }, [traj]);
 
   return (
     <div className="grid" style={{ gap: 8 }}>
       <div className="panel">
         <div className="panel-h">
-          <span>STORAGE TRAJECTORY VS NOV-1 TARGET</span>
-          <span className="badge">{country}</span>
+          <span>STORAGE TRAJECTORY VS NOV-1 TARGET · {country}</span>
+          <span className="ts">amber actual · blue 5y P10-P90 · red required-to-90%</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, marginBottom: 6 }}>
           <span style={{ color: "var(--blue)" }}>COUNTRY</span>
@@ -86,14 +82,17 @@ export default function StoragePage() {
             </span>
           )}
         </div>
-        {trajOption && (
-          <div style={{ height: 340 }}>
-            <ReactECharts option={trajOption} style={{ height: "100%", width: "100%" }} theme="dark" />
-          </div>
+        {seriesData.length > 0 && (
+          <TVChart
+            height={360}
+            series={seriesData}
+            yUnit="%"
+            priceLines={[{ price: 90, color: "#ff5f5f", label: "90% target", lineStyle: "dashed" }]}
+          />
         )}
         {traj && traj.band_by_doy.length === 0 && (
           <div style={{ color: "var(--fg-mute)", fontSize: 11, marginTop: 8 }}>
-            No 5y history yet — run <code>python -m app.ingest.backfill_all --years 5</code>.
+            No 5y history yet — backfill more AGSI history to populate the band.
           </div>
         )}
       </div>
@@ -117,6 +116,7 @@ export default function StoragePage() {
             </thead>
             <tbody>
               {rows
+                .slice()
                 .sort((a, b) => (b.full_pct ?? 0) - (a.full_pct ?? 0))
                 .map((r, i) => {
                   const net = (r.injection_gwh ?? 0) - (r.withdrawal_gwh ?? 0);

@@ -19,6 +19,7 @@
     "@deck.gl/layers": "^9.0.36",
     "echarts": "^5.5.1",
     "echarts-for-react": "^3.0.2",
+    "lightweight-charts": "^5.0.5",
     "swr": "^2.2.5"
   },
   "devDependencies": {
