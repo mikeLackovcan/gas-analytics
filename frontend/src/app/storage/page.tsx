@@ -105,8 +105,8 @@ export default function StoragePage() {
                 <tr key={i}>
                   <td>{r.country}</td>
                   <td>{r.full_pct?.toFixed(1) ?? "—"}</td>
-                  <td>{r.working_gas_twh?.toFixed(1) ?? "—"}</td>
-                  <td>—</td>
+                  <td>{r.gas_in_storage_twh?.toFixed(1) ?? "—"}</td>
+                  <td>{r.working_gas_volume_twh?.toFixed(1) ?? "—"}</td>
                   <td>{r.injection_gwh?.toFixed(0) ?? "—"}</td>
                   <td>{r.withdrawal_gwh?.toFixed(0) ?? "—"}</td>
                 </tr>
