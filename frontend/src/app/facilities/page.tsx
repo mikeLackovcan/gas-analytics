@@ -9,7 +9,7 @@ type Facility = {
   operational_start_date: string | null; operational_end_date: string | null;
 };
 
-const COUNTRIES = ["ALL", "DE", "NL", "FR", "IT", "AT", "CZ", "BE", "PL", "ES", "SK", "HU", "RO", "BG"];
+const COUNTRIES = ["ALL", "DE", "NL", "FR", "IT", "AT", "CZ", "BE", "PL", "ES", "SK", "HU", "RO", "BG", "DK", "HR", "LV", "PT", "UK"];
 
 export default function FacilitiesPage() {
   const [rows, setRows] = useState<Facility[] | null>(null);
@@ -27,34 +27,34 @@ export default function FacilitiesPage() {
   }, [rows]);
 
   return (
-    <div className="grid">
-      <div className="card">
-        <h2>Storage facilities (AGSI /about catalog)</h2>
-        <div className="sub">
-          Country:
-          <select value={country} onChange={(e) => setCountry(e.target.value)}
-                  style={{ marginLeft: 8, background: "#0e1116", color: "#e8eaed", border: "1px solid #1f2933" }}>
+    <div className="grid" style={{ gap: 8 }}>
+      <div className="panel">
+        <div className="panel-h"><span>STORAGE FACILITIES · AGSI /about CATALOG</span><span className="badge">{rows?.length ?? 0} active</span></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11 }}>
+          <span style={{ color: "var(--blue)" }}>COUNTRY</span>
+          <select value={country} onChange={(e) => setCountry(e.target.value)}>
             {COUNTRIES.map((c) => <option key={c}>{c}</option>)}
           </select>
-          {rows && <span style={{ marginLeft: 12 }}>{rows.length} active facilities</span>}
         </div>
       </div>
 
       {country === "ALL" && byCountry.length > 0 && (
-        <div className="card">
-          <h2>Active facility count by country</h2>
+        <div className="panel">
+          <div className="panel-h"><span>FACILITY COUNT · BY COUNTRY</span><span className="ts">active only</span></div>
           <table>
             <thead><tr><th>Country</th><th>Facilities</th></tr></thead>
             <tbody>
-              {byCountry.map(([c, n]) => (<tr key={c}><td>{c}</td><td>{n}</td></tr>))}
+              {byCountry.map(([c, n]) => (
+                <tr key={c}><td className="amber">{c}</td><td>{n}</td></tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
 
-      <div className="card">
-        <h2>Facilities</h2>
-        {!rows && <div>loading…</div>}
+      <div className="panel">
+        <div className="panel-h"><span>FACILITIES</span><span className="ts">EIC · type · operator</span></div>
+        {!rows && <div style={{ color: "var(--fg-mute)" }}>loading…</div>}
         {rows && rows.length > 0 && (
           <table>
             <thead>
@@ -65,13 +65,13 @@ export default function FacilitiesPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.eic}>
-                  <td>{r.country}</td>
+                  <td className="amber">{r.country}</td>
                   <td>{r.operator ?? "—"}</td>
                   <td>{r.name}</td>
                   <td>{r.type ?? "—"}</td>
                   <td>{r.operational_start_date ?? "—"}</td>
                   <td>{r.operational_end_date ?? "—"}</td>
-                  <td style={{ fontSize: 11, color: "#7b8794" }}>{r.eic}</td>
+                  <td style={{ fontSize: 10, color: "var(--fg-mute)" }}>{r.eic}</td>
                 </tr>
               ))}
             </tbody>

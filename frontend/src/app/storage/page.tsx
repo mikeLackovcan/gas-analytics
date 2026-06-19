@@ -45,72 +45,95 @@ export default function StoragePage() {
 
     return {
       backgroundColor: "transparent",
-      grid: { left: 50, right: 20, top: 40, bottom: 40 },
-      tooltip: { trigger: "axis" },
-      legend: { textStyle: { color: "#9aa5b1" }, top: 10 },
-      xAxis: { type: "time", axisLabel: { color: "#9aa5b1" } },
-      yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: "#9aa5b1", formatter: "{value}%" } },
+      grid: { left: 38, right: 12, top: 28, bottom: 30 },
+      tooltip: { trigger: "axis", backgroundColor: "#11161f", borderColor: "#1f2933", textStyle: { color: "#fff", fontFamily: "JetBrains Mono" } },
+      legend: { textStyle: { color: "#a8b3bf" }, top: 0, itemHeight: 8, itemWidth: 14 },
+      xAxis: { type: "time", axisLabel: { color: "#a8b3bf", fontSize: 10 } },
+      yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: "#a8b3bf", fontSize: 10, formatter: "{value}%" } },
       series: [
         { name: "5y P10", type: "line", data: bandDates.map((d, i) => [d, p10[i]]), lineStyle: { opacity: 0 }, symbol: "none", stack: "band-bot" },
-        { name: "5y P10-P90", type: "line", data: bandDates.map((d, i) => [d, p90[i] - p10[i]]), lineStyle: { opacity: 0 }, areaStyle: { color: "rgba(124,196,255,0.15)" }, symbol: "none", stack: "band-bot" },
-        { name: "5y P50", type: "line", data: bandDates.map((d, i) => [d, p50[i]]), lineStyle: { color: "#7cc4ff", type: "dashed", width: 1 }, symbol: "none" },
-        { name: "Actual", type: "line", data: actualSeries, lineStyle: { color: "#ffd166", width: 2.5 }, symbol: "none" },
-        { name: "Required to 90%", type: "line", data: requiredSeries, lineStyle: { color: "#ff6b6b", width: 1.5, type: "dotted" }, symbol: "none" },
-        { name: "90% target", type: "line", markLine: { silent: true, symbol: "none", data: [{ yAxis: 90, lineStyle: { color: "#ff6b6b", type: "dashed" } }] } },
+        { name: "5y P10-P90", type: "line", data: bandDates.map((d, i) => [d, p90[i] - p10[i]]), lineStyle: { opacity: 0 }, areaStyle: { color: "rgba(65,182,230,0.15)" }, symbol: "none", stack: "band-bot" },
+        { name: "5y P50", type: "line", data: bandDates.map((d, i) => [d, p50[i]]), lineStyle: { color: "#41b6e6", type: "dashed", width: 1 }, symbol: "none" },
+        { name: "Actual", type: "line", data: actualSeries, lineStyle: { color: "#ff9900", width: 2 }, symbol: "none" },
+        { name: "Required→90%", type: "line", data: requiredSeries, lineStyle: { color: "#ff5f5f", width: 1.2, type: "dotted" }, symbol: "none" },
+        { name: "90% target", type: "line", markLine: { silent: true, symbol: "none", data: [{ yAxis: 90, lineStyle: { color: "#ff5f5f", type: "dashed" } }] } },
       ],
     };
   }, [traj]);
 
   return (
-    <div className="grid">
-      <div className="card">
-        <h2>Storage trajectory vs Nov-1 target</h2>
-        <div className="sub">
-          Country:
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            style={{ marginLeft: 8, background: "#0e1116", color: "#e8eaed", border: "1px solid #1f2933" }}
-          >
+    <div className="grid" style={{ gap: 8 }}>
+      <div className="panel">
+        <div className="panel-h">
+          <span>STORAGE TRAJECTORY VS NOV-1 TARGET</span>
+          <span className="badge">{country}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, marginBottom: 6 }}>
+          <span style={{ color: "var(--blue)" }}>COUNTRY</span>
+          <select value={country} onChange={(e) => setCountry(e.target.value)}>
             {COUNTRIES.map((c) => <option key={c}>{c}</option>)}
           </select>
-          {traj?.current_pct != null && <span> · current: <b>{traj.current_pct.toFixed(1)}%</b></span>}
+          {traj?.current_pct != null && (
+            <span>
+              <span style={{ color: "var(--blue)" }}>CURRENT</span>{" "}
+              <span style={{ color: "var(--amber)", fontWeight: 700 }}>{traj.current_pct.toFixed(1)}%</span>
+            </span>
+          )}
+          {traj?.target_date && (
+            <span>
+              <span style={{ color: "var(--blue)" }}>DEADLINE</span>{" "}
+              <span>{traj.target_date}</span>
+            </span>
+          )}
         </div>
         {trajOption && (
-          <div style={{ height: 360, marginTop: 12 }}>
-            <ReactECharts option={trajOption} style={{ height: "100%", width: "100%" }} />
+          <div style={{ height: 340 }}>
+            <ReactECharts option={trajOption} style={{ height: "100%", width: "100%" }} theme="dark" />
           </div>
         )}
         {traj && traj.band_by_doy.length === 0 && (
-          <div className="sub" style={{ marginTop: 8 }}>
-            No 5y history yet — run <code>python -m app.ingest.backfill_all --years 5</code> to populate the band.
+          <div style={{ color: "var(--fg-mute)", fontSize: 11, marginTop: 8 }}>
+            No 5y history yet — run <code>python -m app.ingest.backfill_all --years 5</code>.
           </div>
         )}
       </div>
 
-      <div className="card">
-        <h2>AGSI · country fullness (latest)</h2>
-        {!rows && <div>loading…</div>}
-        {rows && rows.length === 0 && <div className="sub">No data — run AGSI ingest.</div>}
+      <div className="panel">
+        <div className="panel-h"><span>AGSI · COUNTRY SNAPSHOT</span><span className="ts">D-1</span></div>
+        {!rows && <div style={{ color: "var(--fg-mute)" }}>loading…</div>}
+        {rows && rows.length === 0 && <div style={{ color: "var(--fg-mute)" }}>No data.</div>}
         {rows && rows.length > 0 && (
           <table>
             <thead>
               <tr>
-                <th>Country</th><th>Full %</th><th>Gas in storage (TWh)</th><th>Working vol (TWh)</th>
-                <th>Inj (GWh)</th><th>Wdr (GWh)</th>
+                <th>Country</th>
+                <th>Full %</th>
+                <th>Gas (TWh)</th>
+                <th>Capacity (TWh)</th>
+                <th>Inj (GWh)</th>
+                <th>Wdr (GWh)</th>
+                <th>Net</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.country}</td>
-                  <td>{r.full_pct?.toFixed(1) ?? "—"}</td>
-                  <td>{r.gas_in_storage_twh?.toFixed(1) ?? "—"}</td>
-                  <td>{r.working_gas_volume_twh?.toFixed(1) ?? "—"}</td>
-                  <td>{r.injection_gwh?.toFixed(0) ?? "—"}</td>
-                  <td>{r.withdrawal_gwh?.toFixed(0) ?? "—"}</td>
-                </tr>
-              ))}
+              {rows
+                .sort((a, b) => (b.full_pct ?? 0) - (a.full_pct ?? 0))
+                .map((r, i) => {
+                  const net = (r.injection_gwh ?? 0) - (r.withdrawal_gwh ?? 0);
+                  return (
+                    <tr key={i}>
+                      <td className="amber">{r.country}</td>
+                      <td style={{ color: (r.full_pct ?? 0) >= 90 ? "var(--green)" : (r.full_pct ?? 0) < 50 ? "var(--red)" : "var(--fg)" }}>
+                        {r.full_pct?.toFixed(1) ?? "—"}
+                      </td>
+                      <td>{r.gas_in_storage_twh?.toFixed(1) ?? "—"}</td>
+                      <td>{r.working_gas_volume_twh?.toFixed(1) ?? "—"}</td>
+                      <td>{r.injection_gwh?.toFixed(0) ?? "—"}</td>
+                      <td>{r.withdrawal_gwh?.toFixed(0) ?? "—"}</td>
+                      <td className={net >= 0 ? "up" : "down"}>{net >= 0 ? "+" : ""}{net.toFixed(0)}</td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         )}

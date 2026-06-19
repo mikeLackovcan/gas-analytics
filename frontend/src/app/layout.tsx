@@ -1,33 +1,19 @@
-import Link from "next/link";
 import "./globals.css";
+import TopBar from "@/components/TopBar";
+import StatusBar from "@/components/StatusBar";
 
 export const metadata = {
-  title: "gas-analytics",
-  description: "European gas market analytics",
+  title: "GAS-ANAL · European Gas Terminal",
+  description: "European gas market analytics — flows, storage, LNG, demand forecast",
 };
-
-const NAV = [
-  { href: "/", label: "Overview" },
-  { href: "/map", label: "Flow map" },
-  { href: "/storage", label: "Storage" },
-  { href: "/facilities", label: "Facilities" },
-  { href: "/lng", label: "LNG" },
-  { href: "/demand", label: "Demand" },
-];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <header className="topbar">
-          <div className="brand">gas-analytics</div>
-          <nav>
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href}>{n.label}</Link>
-            ))}
-          </nav>
-        </header>
+        <TopBar />
         <main className="page">{children}</main>
+        <StatusBar />
       </body>
     </html>
   );
